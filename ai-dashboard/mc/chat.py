@@ -5,7 +5,7 @@ import subprocess
 import threading
 import time
 
-# target -> daftar profile. "lead-agent" / "marketing" / "multi:a,b"
+# target -> daftar profile. "default" (lead agent) / "marketing" / "multi:a,b"
 def parse_target(target):
     if not isinstance(target, str) or not target.strip():
         raise ValueError("target wajib diisi")

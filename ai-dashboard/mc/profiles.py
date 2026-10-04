@@ -15,6 +15,17 @@ def profiles_dir():
     return os.path.join(hermes_home(), "profiles")
 
 
+def profile_dir(name):
+    """Resolve nama profile ke direktorinya.
+
+    Profile 'default' itu implisit di Hermes dan tinggal di HERMES_HOME
+    itu sendiri; profile lain di HERMES_HOME/profiles/<nama>.
+    """
+    if name == "default":
+        return hermes_home()
+    return os.path.join(profiles_dir(), name)
+
+
 def validate_name(name):
     if not isinstance(name, str) or not NAME_RE.match(name):
         raise ValueError("nama profile harus huruf kecil/angka/strip, 2-32 karakter")
@@ -59,11 +70,22 @@ def write_model(pdir, model):
 
 
 def list_profiles():
-    base = profiles_dir()
     out = []
+    # 'default' selalu ada (implisit di Hermes) — tinggal di HERMES_HOME.
+    hh = hermes_home()
+    if os.path.isdir(hh):
+        out.append({
+            "name": "default",
+            "model": read_model(hh),
+            "has_soul": os.path.isfile(os.path.join(hh, "SOUL.md")),
+            "is_default": True,
+        })
+    base = profiles_dir()
     if not os.path.isdir(base):
         return out
     for name in sorted(os.listdir(base)):
+        if name == "default":
+            continue
         pdir = os.path.join(base, name)
         if not os.path.isdir(pdir):
             continue
@@ -71,11 +93,14 @@ def list_profiles():
             "name": name,
             "model": read_model(pdir),
             "has_soul": os.path.isfile(os.path.join(pdir, "SOUL.md")),
+            "is_default": False,
         })
     return out
 
 
 def profile_exists(name):
+    if name == "default":
+        return os.path.isdir(hermes_home())
     return os.path.isdir(os.path.join(profiles_dir(), name))
 
 
@@ -92,15 +117,15 @@ def create_profile(name, description=""):
 
 
 def delete_profile(name):
-    validate_name(name)
-    pdir = os.path.join(profiles_dir(), name)
+    validate_name(name)  # 'default' ditolak di sini — tidak bisa dihapus
+    pdir = profile_dir(name)
     if not os.path.isdir(pdir):
         raise ValueError(f"profile '{name}' tidak ada")
     shutil.rmtree(pdir)
 
 
 def get_soul(name):
-    p = os.path.join(profiles_dir(), name, "SOUL.md")
+    p = os.path.join(profile_dir(name), "SOUL.md")
     try:
         with open(p, encoding="utf-8") as f:
             return f.read()
@@ -109,17 +134,17 @@ def get_soul(name):
 
 
 def set_soul(name, text):
-    if not profile_exists(name):
+    if name != "default" and not profile_exists(name):
         raise ValueError(f"profile '{name}' tidak ada")
     if not isinstance(text, str) or len(text) > 200_000:
         raise ValueError("SOUL.md tidak valid / terlalu besar")
-    with open(os.path.join(profiles_dir(), name, "SOUL.md"), "w", encoding="utf-8") as f:
+    with open(os.path.join(profile_dir(name), "SOUL.md"), "w", encoding="utf-8") as f:
         f.write(text)
 
 
 def set_model(name, model):
-    if not profile_exists(name):
+    if name != "default" and not profile_exists(name):
         raise ValueError(f"profile '{name}' tidak ada")
     if not isinstance(model, str) or not re.match(r"^[\w][\w\-./:]{0,80}$", model):
         raise ValueError("nama model tidak valid")
-    write_model(os.path.join(profiles_dir(), name), model)
+    write_model(profile_dir(name), model)
