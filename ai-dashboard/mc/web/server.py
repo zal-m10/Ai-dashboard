@@ -631,7 +631,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send(200, {"threads": out})
 
     def api_create_thread(self, body):
-        target = (body.get("target") or "lead-agent").strip()
+        target = (body.get("target") or "default").strip()
         title = (body.get("title") or "").strip() or None
         conn = fresh_conn()
         try:
@@ -676,7 +676,7 @@ class Handler(BaseHTTPRequestHandler):
                     # default ke lead agent aktif
                     cur = conn.execute("SELECT profile FROM profile_meta"
                                        " WHERE is_lead_agent=1 LIMIT 1").fetchone()
-                    target = cur["profile"] if cur else "lead-agent"
+                    target = cur["profile"] if cur else "default"
                 tid = chatmod.create_thread(conn, target)
             targets = chatmod.send_async(DB_PATH, conn, tid, text)
         except ValueError as e:
@@ -782,8 +782,8 @@ def auto_loop(interval=30):
 def main():
     init_db_all()
     conn = dbmod.connect(DB_PATH)
-    # seed profile_meta: baca penanda lead agent, default lead-agent
-    lead = "lead-agent"
+    # seed profile_meta: baca penanda lead agent, default = profile "default"
+    lead = "default"
     try:
         with open("/root/.mission-control/lead-agent", encoding="utf-8") as f:
             lead = (f.read().strip() or lead)

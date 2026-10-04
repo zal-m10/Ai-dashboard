@@ -90,7 +90,7 @@ async function loadProfiles() {
   const sel = $("target-select");
   sel.innerHTML = "";
   const mk = (v, t) => { const o = document.createElement("option"); o.value = v; o.textContent = t; sel.appendChild(o); };
-  mk(lead ? lead.name : "lead-agent", "Lead Agent" + (lead ? " (" + lead.name + ")" : ""));
+  mk(lead ? lead.name : "default", "Lead Agent" + (lead ? " (" + lead.name + ")" : ""));
   profiles.filter((p) => !p.is_lead_agent).forEach((p) => mk(p.name, p.name + " — " + (p.role || "specialist")));
   // kotak multi
   const box = $("multi-box");
@@ -120,7 +120,7 @@ $("target-select").onchange = () => {
 function currentTarget() {
   const checked = [...$("multi-box").querySelectorAll("input:checked")].map((c) => c.value);
   if (checked.length) return "multi:" + checked.join(",");
-  return $("target-select").value || "lead-agent";
+  return $("target-select").value || "default";
 }
 
 async function loadThreads() {
