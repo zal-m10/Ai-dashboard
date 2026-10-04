@@ -150,7 +150,12 @@ tahap1_hermes() {
   fi
   export PATH="$HOME/.local/bin:$PATH"
   kuning "jalankan setup-hermes.sh (bisa beberapa menit)..."
-  (cd "$SRC_DIR" && bash setup-hermes.sh </dev/null) || die "setup-hermes.sh gagal"
+  # setup-hermes.sh upstream punya 2 prompt interaktif ("install ripgrep? [Y/n]",
+  # "jalankan setup wizard? [Y/n]") + set -e, sehingga </dev/null membuatnya
+  # mati di tengah jalan (read kena EOF -> exit 1). Jawab "n" untuk keduanya:
+  # ripgrep opsional (grep fallback cukup), wizard di-skip karena setup
+  # dilakukan sendiri oleh installer di tahap berikutnya.
+  (cd "$SRC_DIR" && printf 'nn\n' | bash setup-hermes.sh) || die "setup-hermes.sh gagal"
   "$HOME/.local/bin/hermes" --version || die "binary hermes tidak jalan"
   # wrapper agar cukup ketik: hermes
   cat > /usr/local/bin/hermes <<'EOF'
