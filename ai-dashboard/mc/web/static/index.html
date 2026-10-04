@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Dashboard</title>
+<link rel="stylesheet" href="/static/style.css?v=20261004e">
+</head>
+<body>
+
+<!-- Login -->
+<div id="login" class="login-wrap">
+  <div class="login-box">
+    <h1>AI Dashboard</h1>
+    <p class="muted">Masuk untuk mengelola agen dan misi.</p>
+    <input id="login-pass" type="password" placeholder="Kata sandi" autocomplete="current-password">
+    <button id="login-btn" class="btn primary">Masuk</button>
+    <p id="login-err" class="err"></p>
+  </div>
+</div>
+
+<!-- App -->
+<div id="app" class="app hidden">
+  <div class="topbar">
+    <button id="menu-btn" class="icon-btn" aria-label="Menu"><svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 5h14M3 10h14M3 15h14"/></svg></button>
+    <span class="topbar-title">AI Dashboard</span>
+    <button id="logout-btn-m" class="icon-btn" aria-label="Keluar"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/></svg></button>
+  </div>
+  <aside class="sidebar" id="sidebar">
+    <div class="brand">AI Dashboard</div>
+    <nav>
+      <button data-view="chat" class="nav-btn active">
+        <svg viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        <span>Chat</span>
+      </button>
+      <button data-view="misi" class="nav-btn">
+        <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M8 4v16M3 9h5M3 15h5" stroke="currentColor" stroke-width="2"/></svg>
+        <span>Misi</span>
+      </button>
+      <button data-view="profile" class="nav-btn">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        <span>Profile</span>
+      </button>
+      <button data-view="notif" class="nav-btn">
+        <svg viewBox="0 0 24 24"><path d="M18 8a6 6 0 1 0-12 0c0 7-3 8-3 8h18s-3-1-3-8M10 21a2 2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        <span>Notifikasi</span>
+      </button>
+      <button data-view="biaya" class="nav-btn">
+        <svg viewBox="0 0 24 24"><path d="M3 17l6-6 4 4 8-8" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15 7h6v6" fill="none" stroke="currentColor" stroke-width="2"/></svg>
+        <span>Biaya</span>
+      </button>
+    </nav>
+    <button id="logout-btn" class="nav-btn logout"><span>Keluar</span></button>
+  </aside>
+  <div class="backdrop" id="backdrop"></div>
+
+  <main class="main">
+    <!-- CHAT -->
+    <section id="view-chat" class="view">
+      <div class="chat-layout">
+        <div class="thread-list">
+          <button id="new-thread-btn" class="btn primary block">Chat baru</button>
+          <div id="threads"></div>
+        </div>
+        <div class="chat-pane">
+          <div class="chat-header">
+            <button id="chat-back" class="btn small">&larr; Kembali</button>
+            <div class="target-picker">
+              <label for="target-select">Chat dengan:</label>
+              <select id="target-select"></select>
+              <button id="multi-btn" class="btn small" title="Pilih beberapa profile">Multi</button>
+            </div>
+            <div id="multi-box" class="multi-box hidden"></div>
+            <button id="to-mission-btn" class="btn small" title="Buat misi dari percakapan ini">Jadikan misi</button>
+          </div>
+          <div id="messages" class="messages"></div>
+          <div class="composer">
+            <textarea id="chat-input" rows="2" placeholder="Tulis pesan... (Enter untuk kirim)"></textarea>
+            <button id="send-btn" class="btn primary">Kirim</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MISI -->
+    <section id="view-misi" class="view hidden">
+      <div class="view-head">
+        <h2>Misi</h2>
+        <button id="new-mission-btn" class="btn primary">Misi baru</button>
+      </div>
+      <div id="mission-list" class="cards"></div>
+      <div id="mission-detail" class="hidden">
+        <button id="mission-back" class="btn small">&larr; Kembali</button>
+        <h3 id="md-title"></h3>
+        <div id="md-meta" class="muted"></div>
+        <div id="md-actions" class="row"></div>
+        <h4>Task</h4>
+        <div id="md-tasks"></div>
+      </div>
+    </section>
+
+    <!-- PROFILE -->
+    <section id="view-profile" class="view hidden">
+      <div class="view-head">
+        <h2>Profile</h2>
+        <button id="new-profile-btn" class="btn primary">Tambah profile</button>
+      </div>
+      <div id="profile-list" class="cards"></div>
+    </section>
+
+    <!-- NOTIFIKASI -->
+    <section id="view-notif" class="view hidden">
+      <div class="view-head"><h2>Notifikasi</h2></div>
+      <div class="form-card">
+        <label>Gateway
+          <select id="notif-gateway">
+            <option value="telegram">Telegram</option>
+          </select>
+        </label>
+        <label class="check"><input type="checkbox" id="notif-enabled"> Aktif</label>
+        <label class="check"><input type="checkbox" id="notif-gate"> Minta approval</label>
+        <label class="check"><input type="checkbox" id="notif-done"> Misi selesai</label>
+        <label class="check"><input type="checkbox" id="notif-error"> Error</label>
+        <div class="row">
+          <button id="notif-save" class="btn primary">Simpan</button>
+          <button id="notif-test" class="btn">Kirim tes</button>
+        </div>
+        <p id="notif-msg" class="muted"></p>
+      </div>
+    </section>
+
+    <!-- BIAYA -->
+    <section id="view-biaya" class="view hidden">
+      <div class="view-head">
+        <h2>Biaya</h2>
+        <select id="usage-days">
+          <option value="1">24 jam</option>
+          <option value="7" selected>7 hari</option>
+          <option value="30">30 hari</option>
+        </select>
+      </div>
+      <div id="usage-summary" class="stat-row"></div>
+      <div id="usage-table"></div>
+      <p class="muted small">Sumber: hermes insights per profile. Estimasi biaya menyusul.</p>
+    </section>
+  </main>
+</div>
+
+<!-- Modal generik -->
+<div id="modal" class="modal hidden">
+  <div class="modal-box">
+    <h3 id="modal-title"></h3>
+    <div id="modal-body"></div>
+    <div class="row end">
+      <button id="modal-cancel" class="btn">Batal</button>
+      <button id="modal-ok" class="btn primary">Simpan</button>
+    </div>
+  </div>
+</div>
+
+<script src="/static/app.js?v=20261004e"></script>
+</body>
+</html>
