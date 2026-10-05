@@ -150,7 +150,10 @@ tahap1_hermes() {
       local spin='|/-\' i=0 last=""
       while kill -0 "$pid" 2>/dev/null; do
         i=$(( (i + 1) % 4 ))
-        last="$(grep -v '^[[:space:]]*$' "$hlog" 2>/dev/null | tail -1 | cut -c1-100)"
+        # NB: '|| true' wajib — tanpa itu, grep yang tidak menemukan baris
+        # (log masih kosong) exit 1, dan karena set -e + pipefail, script
+        # langsung mati diam-diam tepat seperti yang terjadi kemarin.
+        last="$(grep -v '^[[:space:]]*$' "$hlog" 2>/dev/null | tail -1 | cut -c1-100 || true)"
         printf '\r[%c] %s' "${spin:$i:1}" "${last:-menunggu output...}"
         sleep 1
       done
