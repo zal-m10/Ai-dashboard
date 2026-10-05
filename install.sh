@@ -90,6 +90,15 @@ minta() {
 export PATH="$HOME/.local/bin:/usr/local/bin:$PATH"
 export HERMES_HOME
 
+# Cek apakah gateway Hermes sedang berjalan (akurat untuk semua cara instalasi:
+# perintah native, user systemd service, system systemd service).
+gateway_berjalan() {
+  hermes gateway status 2>/dev/null | grep -qi "active.*(running)" && return 0
+  systemctl --user is-active --quiet hermes-gateway 2>/dev/null && return 0
+  systemctl is-active --quiet hermes-gateway 2>/dev/null && return 0
+  return 1
+}
+
 # ============================================================================
 # Tahap 0 — prasyarat
 # ============================================================================
@@ -171,7 +180,7 @@ EOF
   fi
 
   # info gateway (domain-nya Hermes, bukan installer ini)
-  if hermes gateway list 2>/dev/null | grep -qi "running"; then
+  if gateway_berjalan; then
     hijau "gateway Hermes sudah running"
   else
     kuning "gateway belum running — atur via flow resmi Hermes: hermes setup"
@@ -225,7 +234,20 @@ EOF
   printf 'default\n' > "$MC_DIR/lead-agent"
   chmod 600 "$MC_DIR/lead-agent"
 
-  # 4. verifikasi ringan (tidak fatal — model diatur via `hermes setup`)
+  # 4. restart gateway agar SOUL.md baru terbaca (hanya bila sedang jalan)
+  if gateway_berjalan; then
+    kuning "restart gateway agar SOUL.md baru terbaca..."
+    hermes gateway restart >/dev/null 2>&1 \
+      || systemctl --user restart hermes-gateway 2>/dev/null \
+      || systemctl restart hermes-gateway 2>/dev/null \
+      || kuning "gateway restart gagal — restart manual bila perlu: hermes gateway restart"
+    sleep 3
+    hijau "gateway di-restart"
+  else
+    kuning "gateway tidak sedang jalan — SOUL.md baru terbaca saat gateway dijalankan"
+  fi
+
+  # 5. verifikasi ringan (tidak fatal — model diatur via `hermes setup`)
   kuning "verifikasi: coba sapa profile default..."
   local jawab=""
   jawab="$(timeout 180 hermes -p default chat -q "Balas tepat: DASHBOARD-OK" 2>/dev/null | tr -d '\r\n\t ' || true)"
@@ -314,9 +336,12 @@ tahap4_nginx() {
   command -v certbot >/dev/null || { apt-get install -y -qq certbot python3-certbot-nginx; }
 
   local vhost=/etc/nginx/sites-available/ai-dashboard
-  if grep -q "server_name $domain" "$vhost" 2>/dev/null && grep -q "listen 443 ssl" "$vhost" 2>/dev/null; then
-    hijau "vhost HTTPS untuk $domain sudah ada, lewati"
-  else
+  local certdir="/etc/letsencrypt/live/$domain"
+
+  if [ ! -f "$certdir/fullchain.pem" ]; then
+    # Belum ada sertifikat: buat vhost port 80, lalu certbot yang
+    # menerbitkan sertifikat + menambahkan blok 443.
+    kuning "buat vhost port 80 + minta sertifikat via certbot..."
     cat > "$vhost" <<EOF
 server {
     listen 80;
@@ -330,19 +355,45 @@ server {
     }
 }
 EOF
-    ln -sf "$vhost" /etc/nginx/sites-enabled/ai-dashboard
-    nginx -t || die "konfigurasi nginx tidak valid"
-    systemctl reload nginx 2>/dev/null || systemctl restart nginx
-
-    if [ -f "/etc/letsencrypt/live/$domain/fullchain.pem" ]; then
-      hijau "sertifikat untuk $domain sudah ada, lewati"
-    else
-      email="$(minta MC_EMAIL "Email untuk Let's Encrypt")"
-      certbot --nginx -d "$domain" --non-interactive --agree-tos -m "$email" \
-        --redirect || die "certbot gagal — pastikan DNS sudah pointing dan port 80 terbuka"
-      hijau "sertifikat HTTPS terpasang"
-    fi
+    email="$(minta MC_EMAIL "Email untuk Let's Encrypt")"
+    certbot --nginx -d "$domain" --non-interactive --agree-tos -m "$email" \
+      --redirect || die "certbot gagal — pastikan DNS sudah pointing dan port 80 terbuka"
+    hijau "sertifikat HTTPS terpasang via certbot"
+  else
+    # Sertifikat sudah ada: generate vhost lengkap (80 + 443) langsung
+    # memakai sertifikat yang ada — tanpa certbot.
+    kuning "sertifikat untuk $domain sudah ada — generate vhost HTTPS..."
+    cat > "$vhost" <<EOF
+server {
+    listen 80;
+    server_name $domain;
+    location / {
+        proxy_pass http://127.0.0.1:8090;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+server {
+    listen 443 ssl;
+    server_name $domain;
+    ssl_certificate $certdir/fullchain.pem;
+    ssl_certificate_key $certdir/privkey.pem;
+    location / {
+        proxy_pass http://127.0.0.1:8090;
+        proxy_set_header Host \$host;
+        proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
+    }
+}
+EOF
+    hijau "vhost HTTPS di-generate memakai sertifikat yang ada"
   fi
+  ln -sf "$vhost" /etc/nginx/sites-enabled/ai-dashboard
+  nginx -t || die "konfigurasi nginx tidak valid"
+  systemctl reload nginx 2>/dev/null || systemctl restart nginx
   sleep 2
   local https_code
   https_code="$(curl -sk --noproxy "*" --max-time 15 -o /dev/null -w "%{http_code}" \
