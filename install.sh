@@ -133,8 +133,27 @@ tahap1_hermes() {
     # Sengaja TANPA --non-interactive: bila ada terminal, flow resmi Hermes
     # (setup model + gateway) berjalan interaktif; bila tidak ada terminal,
     # installer resmi me-skip tahap itu dengan anggun.
-    curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash \
-      || die "installer resmi Hermes gagal"
+    # Installer resmi jalan di background; spinner + baris terakhir log
+    # ditampilkan agar tidak dikira stuck (step ini bisa 5-10 menit sepi output).
+    local hlog=/tmp/hermes-install.log pid=""
+    rm -f "$hlog"
+    curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash >"$hlog" 2>&1 &
+    pid=$!
+    if [ -t 1 ]; then
+      local spin='|/-\' i=0 last=""
+      while kill -0 "$pid" 2>/dev/null; do
+        i=$(( (i + 1) % 4 ))
+        last="$(grep -v '^[[:space:]]*$' "$hlog" 2>/dev/null | tail -1 | cut -c1-100)"
+        printf '\r[%c] %s' "${spin:$i:1}" "${last:-menunggu output...}"
+        sleep 1
+      done
+      printf '\r%-110s\r' " "
+    fi
+    if ! wait "$pid"; then
+      merah "installer resmi Hermes gagal — 30 baris terakhir log:"
+      tail -30 "$hlog" >&2
+      die "installer resmi Hermes gagal"
+    fi
     "$HOME/.local/bin/hermes" --version >/dev/null 2>&1 \
       || die "binary hermes tidak jalan setelah install"
     hijau "Hermes terinstall: $(hermes --version 2>/dev/null | head -1)"
