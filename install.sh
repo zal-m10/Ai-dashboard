@@ -137,27 +137,37 @@ tahap1_hermes() {
     pkill -9 -f "hermes-agen[t]" 2>/dev/null || true
     sleep 1
     kuning "jalankan installer resmi Hermes (bisa beberapa menit)..."
-    # Sengaja TANPA --non-interactive: bila ada terminal, flow resmi Hermes
-    # (setup model + gateway) berjalan interaktif; bila tidak ada terminal,
-    # installer resmi me-skip tahap itu dengan anggun.
-    # Installer resmi jalan di background; spinner + baris terakhir log
-    # ditampilkan agar tidak dikira stuck (step ini bisa 5-10 menit sepi output).
+    # Installer resmi jalan di background agar progresnya bisa ditampilkan
+    # dengan rapi: baris baru log dicetak apa adanya (variasi natural terjaga),
+    # heartbeat "... masih berjalan ..." hanya muncul saat sepi output >15
+    # detik agar tidak dikira stuck. Tanpa \r / karakter animasi — tidak semua
+    # terminal menanganinya dengan benar (pelajaran: spinner [|/-\] menumpuk
+    # berantakan di layar sempit).
     local hlog=/tmp/hermes-install.log pid=""
-    rm -f "$hlog"
+    rm -f "$hlog"; touch "$hlog"
     curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash >"$hlog" 2>&1 &
     pid=$!
-    if [ -t 1 ]; then
-      local spin='|/-\' i=0 last=""
-      while kill -0 "$pid" 2>/dev/null; do
-        i=$(( (i + 1) % 4 ))
-        # NB: '|| true' wajib — tanpa itu, grep yang tidak menemukan baris
-        # (log masih kosong) exit 1, dan karena set -e + pipefail, script
-        # langsung mati diam-diam tepat seperti yang terjadi kemarin.
-        last="$(grep -v '^[[:space:]]*$' "$hlog" 2>/dev/null | tail -1 | cut -c1-100 || true)"
-        printf '\r[%c] %s' "${spin:$i:1}" "${last:-menunggu output...}"
-        sleep 1
-      done
-      printf '\r%-110s\r' " "
+    local n=0 new_n=0 sepi=0
+    while kill -0 "$pid" 2>/dev/null; do
+      new_n="$(wc -l < "$hlog" 2>/dev/null || true)"; new_n="${new_n:-0}"
+      if [ "$new_n" -gt "$n" ] 2>/dev/null; then
+        tail -n +"$((n + 1))" "$hlog" 2>/dev/null \
+          | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g' | cut -c1-160
+        n="$new_n"; sepi=0
+      else
+        sepi=$((sepi + 1))
+        if [ "$sepi" -ge 8 ]; then
+          echo "  ... masih berjalan, menunggu output installer ..."
+          sepi=0
+        fi
+      fi
+      sleep 2
+    done
+    # drain sisa output yang belum tercetak
+    new_n="$(wc -l < "$hlog" 2>/dev/null || true)"; new_n="${new_n:-0}"
+    if [ "$new_n" -gt "$n" ] 2>/dev/null; then
+      tail -n +"$((n + 1))" "$hlog" 2>/dev/null \
+        | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g' | cut -c1-160
     fi
     if ! wait "$pid"; then
       merah "installer resmi Hermes gagal — 30 baris terakhir log:"
