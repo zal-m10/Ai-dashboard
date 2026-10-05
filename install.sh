@@ -137,43 +137,11 @@ tahap1_hermes() {
     pkill -9 -f "hermes-agen[t]" 2>/dev/null || true
     sleep 1
     kuning "jalankan installer resmi Hermes (bisa beberapa menit)..."
-    # Installer resmi jalan di background agar progresnya bisa ditampilkan
-    # dengan rapi: baris baru log dicetak apa adanya (variasi natural terjaga),
-    # heartbeat "... masih berjalan ..." hanya muncul saat sepi output >15
-    # detik agar tidak dikira stuck. Tanpa \r / karakter animasi — tidak semua
-    # terminal menanganinya dengan benar (pelajaran: spinner [|/-\] menumpuk
-    # berantakan di layar sempit).
-    local hlog=/tmp/hermes-install.log pid=""
-    rm -f "$hlog"; touch "$hlog"
-    curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash >"$hlog" 2>&1 &
-    pid=$!
-    local n=0 new_n=0 sepi=0
-    while kill -0 "$pid" 2>/dev/null; do
-      new_n="$(wc -l < "$hlog" 2>/dev/null || true)"; new_n="${new_n:-0}"
-      if [ "$new_n" -gt "$n" ] 2>/dev/null; then
-        tail -n +"$((n + 1))" "$hlog" 2>/dev/null \
-          | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g' | cut -c1-160
-        n="$new_n"; sepi=0
-      else
-        sepi=$((sepi + 1))
-        if [ "$sepi" -ge 8 ]; then
-          echo "  ... masih berjalan, menunggu output installer ..."
-          sepi=0
-        fi
-      fi
-      sleep 2
-    done
-    # drain sisa output yang belum tercetak
-    new_n="$(wc -l < "$hlog" 2>/dev/null || true)"; new_n="${new_n:-0}"
-    if [ "$new_n" -gt "$n" ] 2>/dev/null; then
-      tail -n +"$((n + 1))" "$hlog" 2>/dev/null \
-        | sed 's/\x1b\[[0-9;?]*[a-zA-Z]//g' | cut -c1-160
-    fi
-    if ! wait "$pid"; then
-      merah "installer resmi Hermes gagal — 30 baris terakhir log:"
-      tail -30 "$hlog" >&2
-      die "installer resmi Hermes gagal"
-    fi
+    # Dijalankan LANGSUNG di foreground, output apa adanya ke terminal.
+    # TUI interaktif resmi Hermes (menu pilihan setup dkk) butuh terminal
+    # asli — JANGAN dialihkan ke background/log, itu merusak tampilannya.
+    curl -fsSL https://hermes-agent.nousresearch.com/install.sh | bash \
+      || die "installer resmi Hermes gagal"
     "$HOME/.local/bin/hermes" --version >/dev/null 2>&1 \
       || die "binary hermes tidak jalan setelah install"
     hijau "Hermes terinstall: $(hermes --version 2>/dev/null | head -1)"
