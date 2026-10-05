@@ -277,7 +277,10 @@ tahap3_dashboard() {
 
   local passfile="$HERMES_HOME/mission-control/.dashboard-pass"
   if [ ! -f "$passfile" ]; then
-    < /dev/urandom tr -dc 'A-Za-z0-9' | head -c 24 > "$passfile"
+    # NB: '|| true' wajib — head -c menutup pipe setelah 24 byte lalu tr mati
+    # kena SIGPIPE; tanpa ini, set -e + pipefail membunuh script diam-diam
+    # tepat setelah "kode dashboard tersalin" (kasus 5 Okt 2026).
+    < /dev/urandom tr -dc 'A-Za-z0-9' | head -c 24 > "$passfile" || true
     chmod 600 "$passfile"
     DASHBOARD_PASSWORD_BARU="$(cat "$passfile")"
     kuning "password dashboard dibuat (ditampilkan sekali di ringkasan akhir)"
