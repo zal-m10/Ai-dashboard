@@ -338,9 +338,11 @@ tahap4_nginx() {
   local certdir="/etc/letsencrypt/live/$domain"
 
   if [ ! -f "$certdir/fullchain.pem" ]; then
-    # Belum ada sertifikat: buat vhost port 80, lalu certbot yang
-    # menerbitkan sertifikat + menambahkan blok 443.
-    kuning "buat vhost port 80 + minta sertifikat via certbot..."
+    # Belum ada sertifikat: buat vhost port 80 sementara untuk validasi
+    # HTTP-01, lalu minta sertifikat via `certbot certonly` — TANPA
+    # mengubah konfigurasi nginx (vhost 443 kita tulis sendiri di bawah,
+    # agar certbot tidak salah pasang ke site lain).
+    kuning "buat vhost port 80 sementara + minta sertifikat via certbot..."
     cat > "$vhost" <<EOF
 server {
     listen 80;
@@ -354,15 +356,27 @@ server {
     }
 }
 EOF
+    ln -sf "$vhost" /etc/nginx/sites-enabled/ai-dashboard
+    nginx -t || die "konfigurasi nginx tidak valid"
+    systemctl reload nginx 2>/dev/null || systemctl restart nginx
     email="$(minta MC_EMAIL "Email untuk Let's Encrypt")"
-    certbot --nginx -d "$domain" --non-interactive --agree-tos -m "$email" \
-      --redirect || die "certbot gagal — pastikan DNS sudah pointing dan port 80 terbuka"
-    hijau "sertifikat HTTPS terpasang via certbot"
+    certbot certonly --nginx -d "$domain" --non-interactive --agree-tos -m "$email" \
+      || die "certbot gagal — pastikan DNS sudah pointing dan port 80 terbuka"
+    hijau "sertifikat diperoleh via certbot"
   else
-    # Sertifikat sudah ada: generate vhost lengkap (80 + 443) langsung
-    # memakai sertifikat yang ada — tanpa certbot.
-    kuning "sertifikat untuk $domain sudah ada — generate vhost HTTPS..."
-    cat > "$vhost" <<EOF
+    kuning "sertifikat untuk $domain sudah ada — pakai yang ada."
+  fi
+
+  # Tulis vhost lengkap (80 + 443) memakai sertifikat — baik yang baru
+  # diterbitkan maupun yang sudah ada sebelumnya.
+  kuning "generate vhost HTTPS..."
+  local ssl_opts=""
+  [ -f /etc/letsencrypt/options-ssl-nginx.conf ] && ssl_opts="    include /etc/letsencrypt/options-ssl-nginx.conf;"
+  if [ -f /etc/letsencrypt/ssl-dhparams.pem ]; then
+    ssl_opts="$ssl_opts
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;"
+  fi
+  cat > "$vhost" <<EOF
 server {
     listen 80;
     server_name $domain;
@@ -379,6 +393,7 @@ server {
     server_name $domain;
     ssl_certificate $certdir/fullchain.pem;
     ssl_certificate_key $certdir/privkey.pem;
+$ssl_opts
     location / {
         proxy_pass http://127.0.0.1:8090;
         proxy_set_header Host \$host;
@@ -388,8 +403,7 @@ server {
     }
 }
 EOF
-    hijau "vhost HTTPS di-generate memakai sertifikat yang ada"
-  fi
+  hijau "vhost HTTPS di-generate"
   ln -sf "$vhost" /etc/nginx/sites-enabled/ai-dashboard
   nginx -t || die "konfigurasi nginx tidak valid"
   systemctl reload nginx 2>/dev/null || systemctl restart nginx
