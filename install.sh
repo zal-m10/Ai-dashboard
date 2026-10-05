@@ -129,6 +129,13 @@ tahap1_hermes() {
     hijau "Hermes sudah terinstall, lewati"
     hermes --version 2>/dev/null | head -1
   else
+    # Bersihkan sisa proses Hermes dari install yang terputus (mis. DC di
+    # tengah jalan): proses 'gateway run'/'setup' yang menggantung mengunci
+    # update dan membuat installer resmi gagal ("an update is still running").
+    # Aman: binary hermes belum jalan, jadi tidak ada instalasi sehat yang
+    # terganggu di sini.
+    pkill -9 -f "hermes-agen[t]" 2>/dev/null || true
+    sleep 1
     kuning "jalankan installer resmi Hermes (bisa beberapa menit)..."
     # Sengaja TANPA --non-interactive: bila ada terminal, flow resmi Hermes
     # (setup model + gateway) berjalan interaktif; bila tidak ada terminal,
