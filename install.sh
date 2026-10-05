@@ -158,11 +158,16 @@ exec /root/.local/bin/hermes "$@"
 EOF
   chmod +x /usr/local/bin/hermes
 
-  # pastikan profile bawaan "default" terdaftar
-  if hermes profile list 2>/dev/null | grep -q "default"; then
+  # pastikan profile bawaan "default" terdaftar.
+  # "default" di Hermes itu implisit = HERMES_HOME itu sendiri, jadi cek
+  # filesystem langsung (deterministik). JANGAN pakai `hermes profile list |
+  # grep` di sini — tepat setelah install, perintah itu bisa gagal sesaat
+  # (lock/finalisasi background) dan membuat installer mati padahal profile
+  # sebenarnya ada.
+  if [ -f "$HERMES_HOME/SOUL.md" ] || [ -f "$HERMES_HOME/config.yaml" ]; then
     hijau "profile bawaan 'default' terdeteksi"
   else
-    die "profile 'default' tidak ditemukan setelah install Hermes"
+    die "profile 'default' tidak ditemukan setelah install Hermes (HERMES_HOME=$HERMES_HOME)"
   fi
 
   # info gateway (domain-nya Hermes, bukan installer ini)
