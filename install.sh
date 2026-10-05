@@ -75,13 +75,23 @@ minta() {
   val="${!env_name:-}"
   if [ -n "$val" ]; then printf '%s' "$val"; return 0; fi
   if [ "$NON_INTERACTIVE" = "1" ]; then die "$env_name wajib diisi (mode non-interaktif)"; fi
-  if [ ! -t 0 ]; then die "$env_name wajib diisi via env (tidak ada terminal)"; fi
+  # Bila stdin bukan terminal (mis. `curl | bash`), baca dari /dev/tty
+  # langsung — seperti installer resmi Hermes. Hanya gagal bila benar-benar
+  # tidak ada terminal.
+  local tty_in="/dev/stdin"
+  if [ ! -t 0 ]; then
+    if [ -c /dev/tty ]; then
+      tty_in="/dev/tty"
+    else
+      die "$env_name wajib diisi via env (tidak ada terminal)"
+    fi
+  fi
   if [ "$rahasia" = "1" ]; then
-    read -rsp "$prompt: " val; echo
+    read -rsp "$prompt: " val <"$tty_in"; echo
   elif [ -n "$def" ]; then
-    read -rp "$prompt [$def]: " val; val="${val:-$def}"
+    read -rp "$prompt [$def]: " val <"$tty_in"; val="${val:-$def}"
   else
-    read -rp "$prompt: " val
+    read -rp "$prompt: " val <"$tty_in"
   fi
   [ -n "$val" ] || die "$env_name tidak boleh kosong"
   printf '%s' "$val"
@@ -245,17 +255,6 @@ EOF
     hijau "gateway di-restart"
   else
     kuning "gateway tidak sedang jalan — SOUL.md baru terbaca saat gateway dijalankan"
-  fi
-
-  # 5. verifikasi ringan (tidak fatal — model diatur via `hermes setup`)
-  kuning "verifikasi: coba sapa profile default..."
-  local jawab=""
-  jawab="$(timeout 180 hermes -p default chat -q "Balas tepat: DASHBOARD-OK" 2>/dev/null | tr -d '\r\n\t ' || true)"
-  if [ "$jawab" = "DASHBOARD-OK" ]; then
-    hijau "profile default menjawab: OK"
-  else
-    kuning "profile default belum menjawab — kemungkinan model/API key belum dikonfigurasi."
-    kuning "jalankan: hermes setup  (flow resmi Hermes untuk model & gateway)"
   fi
 }
 
