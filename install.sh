@@ -169,7 +169,9 @@ tahap1_hermes() {
     hijau "Hermes terinstall: $(hermes --version 2>/dev/null | head -1)"
   fi
 
-  # wrapper agar cukup ketik: hermes (dari shell mana pun)
+  # wrapper agar cukup ketik: hermes (dari shell mana pun).
+  # Dibuat SELALU (bukan cuma saat install) — dashboard memanggil `hermes`
+  # via subprocess dan /root/.local/bin tidak ada di PATH systemd.
   cat > /usr/local/bin/hermes <<'EOF'
 #!/bin/bash
 export HERMES_HOME=/root/.hermes
